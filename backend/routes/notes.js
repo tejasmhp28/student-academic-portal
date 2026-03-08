@@ -1,13 +1,18 @@
 const express = require('express');
-const Note = require('../models/Note');
+const admin = require('firebase-admin');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
+const db = admin.firestore();
 
 // Get all notes for user
 router.get('/', auth, async (req, res) => {
   try {
-    const notes = await Note.find({ user: req.user.id });
+    const snapshot = await db.collection('notes').where('userId', '==', req.user.uid).get();
+    const notes = [];
+    snapshot.forEach(doc => {
+      notes.push({ id: doc.id, ...doc.data() });
+    });
     res.json(notes);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
@@ -18,9 +23,16 @@ router.get('/', auth, async (req, res) => {
 router.post('/', auth, async (req, res) => {
   try {
     const { title, content, subject, tags, isPublic } = req.body;
-    const note = new Note({ title, content, subject, tags, isPublic, user: req.user.id });
-    await note.save();
-    res.json(note);
+    const docRef = await db.collection('notes').add({
+      title,
+      content,
+      subject,
+      tags: tags || [],
+      isPublic: isPublic || false,
+      userId: req.user.uid,
+      createdAt: new Date(),
+    });
+    res.json({ id: docRef.id, title, content, subject, tags, isPublic });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
@@ -29,11 +41,12 @@ router.post('/', auth, async (req, res) => {
 // Update note
 router.put('/:id', auth, async (req, res) => {
   try {
-    const note = await Note.findById(req.params.id);
-    if (!note) return res.status(404).json({ message: 'Note not found' });
-    if (note.user.toString() !== req.user.id) return res.status(401).json({ message: 'Not authorized' });
-    const updatedNote = await Note.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(updatedNote);
+    const noteDoc = await db.collection('notes').doc(req.params.id).get();
+    if (!noteDoc.exists) return res.status(404).json({ message: 'Note not found' });
+    if (noteDoc.data().userId !== req.user.uid) return res.status(401).json({ message: 'Not authorized' });
+    
+    await db.collection('notes').doc(req.params.id).update(req.body);
+    res.json({ id: req.params.id, ...req.body });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
@@ -42,10 +55,11 @@ router.put('/:id', auth, async (req, res) => {
 // Delete note
 router.delete('/:id', auth, async (req, res) => {
   try {
-    const note = await Note.findById(req.params.id);
-    if (!note) return res.status(404).json({ message: 'Note not found' });
-    if (note.user.toString() !== req.user.id) return res.status(401).json({ message: 'Not authorized' });
-    await Note.findByIdAndDelete(req.params.id);
+    const noteDoc = await db.collection('notes').doc(req.params.id).get();
+    if (!noteDoc.exists) return res.status(404).json({ message: 'Note not found' });
+    if (noteDoc.data().userId !== req.user.uid) return res.status(401).json({ message: 'Not authorized' });
+    
+    await db.collection('notes').doc(req.params.id).delete();
     res.json({ message: 'Note deleted' });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });

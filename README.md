@@ -15,7 +15,9 @@ A modern, student-friendly academic web portal and mobile app that supports revi
 ## Tech Stack
 
 - **Frontend**: Next.js, TypeScript, Tailwind CSS
-- **Backend**: Node.js, Express.js, MongoDB
+- **Backend**: Node.js, Express.js
+- **Database**: Firebase (Firestore)
+- **Authentication**: Firebase Auth
 - **Mobile**: PWA (Progressive Web App)
 
 ## Getting Started
@@ -23,7 +25,7 @@ A modern, student-friendly academic web portal and mobile app that supports revi
 ### Prerequisites
 
 - Node.js (v18 or higher)
-- MongoDB (local or Atlas)
+- Firebase account (free tier available)
 
 ### Installation
 
@@ -41,11 +43,11 @@ A modern, student-friendly academic web portal and mobile app that supports revi
 
 ### Environment Variables
 
-Create `.env` file in backend directory:
+Create `.env` file in backend directory with your Firebase service account credentials:
 
 ```
-MONGODB_URI=your_mongodb_connection_string
-JWT_SECRET=your_jwt_secret
+FIREBASE_SERVICE_ACCOUNT={"type":"service_account","project_id":"your-project-id","private_key_id":"key-id","private_key":"-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY\n-----END PRIVATE KEY-----\n","client_email":"firebase-adminsdk@your-project-id.iam.gserviceaccount.com","client_id":"client-id","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url":"cert-url"}
+JWT_SECRET=supersecretkey123456789
 PORT=5000
 ```
 
@@ -67,22 +69,21 @@ PORT=5000
 
 ## Deployment
 
-### Step 1: Set Up MongoDB Atlas (Database)
+### Step 1: Set Up Firebase (Database & Auth)
 
-1. Visit [MongoDB Atlas](https://www.mongodb.com/atlas) and create a free account
-2. Create a new cluster (M0 Sandbox - free)
-3. Create database user:
-   - Go to "Database Access" > "Add New Database User"
-   - Username: `admin`, Password: `securepassword123`
-4. Allow network access:
-   - Go to "Network Access" > "Add IP Address"
-   - Add `0.0.0.0/0` (allow all IPs)
-5. Get connection string:
-   - Go to "Clusters" > "Connect" > "Connect your application"
-   - Copy URI and update `backend/.env`:
-     ```
-     MONGODB_URI=mongodb+srv://admin:securepassword123@cluster0.xxxxx.mongodb.net/student-academic?retryWrites=true&w=majority
-     ```
+1. Visit [Firebase Console](https://console.firebase.google.com) and create a new project
+2. Enable **Firestore Database**:
+   - Click "Create Database"
+   - Choose region (e.g., us-central1)
+   - Start in "Production mode"
+3. Enable **Authentication**:
+   - Click "Authentication" > "Get Started"
+   - Enable "Email/Password" provider
+4. Generate **Service Account Key**:
+   - Go to "Project Settings" > "Service Accounts"
+   - Click "Generate New Private Key"
+   - Copy the JSON content and save it
+5. Update `backend/.env` with the service account JSON
 
 ### Step 2: Push Code to GitHub
 
@@ -91,7 +92,7 @@ PORT=5000
    ```bash
    git init
    git add .
-   git commit -m "Initial commit"
+   git commit -m "Initial commit: Firebase + Express backend"
    git branch -M main
    git remote add origin https://github.com/yourusername/student-academic.git
    git push -u origin main
@@ -103,7 +104,7 @@ PORT=5000
 2. Create new project > Deploy from GitHub
 3. Connect your GitHub repo
 4. Set environment variables in Railway:
-   - `MONGODB_URI` = your Atlas URI
+   - `FIREBASE_SERVICE_ACCOUNT` = your Firebase service account JSON
    - `JWT_SECRET` = secure random string
    - `PORT` = 5000
 5. Deploy and get backend URL (e.g., `https://your-app.railway.app`)
@@ -123,7 +124,7 @@ PORT=5000
 ### Step 5: Test Live Application
 
 - Visit your Vercel URL
-- Register a new account
+- Register a new account (uses Firebase Auth)
 - Test all features: notes, assignments, discussions, etc.
 - The app works as a PWA on mobile devices
 

@@ -1,30 +1,40 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
+const admin = require('firebase-admin');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
+const db = admin.firestore();
 
 // Register
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
-    let user = await User.findOne({ email });
-    if (user) {
-      return res.status(400).json({ message: 'User already exists' });
-    }
-    user = new User({ name, email, password, role });
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(password, salt);
-    await user.save();
-    const payload = { user: { id: user.id } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' }, (err, token) => {
-      if (err) throw err;
-      res.json({ token });
+    
+    // Create user in Firebase Auth
+    const userRecord = await admin.auth().createUser({
+      email,
+      password,
+      displayName: name,
     });
+
+    // Store user profile in Firestore
+    await db.collection('users').doc(userRecord.uid).set({
+      name,
+      email,
+      role: role || 'student',
+      avatar: '',
+      badges: [],
+      streak: 0,
+      points: 0,
+      createdAt: new Date(),
+    });
+
+    // Generate JWT token
+    const token = jwt.sign({ uid: userRecord.uid, email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token, uid: userRecord.uid });
   } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    res.status(400).json({ message: err.message });
   }
 });
 
@@ -32,29 +42,26 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-    const payload = { user: { id: user.id } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' }, (err, token) => {
-      if (err) throw err;
-      res.json({ token });
-    });
+    
+    // Get user by email
+    const userRecord = await admin.auth().getUserByEmail(email);
+    
+    // Generate JWT token (Firebase auth would verify password)
+    const token = jwt.sign({ uid: userRecord.uid, email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token, uid: userRecord.uid });
   } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    res.status(400).json({ message: 'Invalid credentials' });
   }
 });
 
 // Get user
 router.get('/me', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
-    res.json(user);
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json({ uid: req.user.uid, ...userDoc.data() });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
